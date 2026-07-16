@@ -1,0 +1,79 @@
+name: Build and Permanent Release ChatPlaceholder
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout Source
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: maven
+
+    - name: Build with Maven
+      run: |
+        # Retries because the Spigot / MBedwars / PlaceholderAPI repositories
+        # occasionally return transient errors to GitHub-hosted runner IPs
+        # while resolving the provided-scope artifacts.
+        for attempt in 1 2 3; do
+          if mvn -B package --file pom.xml; then
+            exit 0
+          fi
+          echo "Maven build failed (attempt $attempt/3), retrying in 15s..."
+          sleep 15
+        done
+        exit 1
+
+    - name: Prepare JAR
+      run: |
+        # Searches for the ChatPlaceholder jar while ignoring shaded/source/javadoc variants
+        JAR_PATH=$(find target/ -name "ChatPlaceholder-*.jar" ! -name "*shaded*" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
+        if [ -z "$JAR_PATH" ]; then
+          echo "Could not find ChatPlaceholder JAR file in target/"
+          exit 1
+        fi
+        cp "$JAR_PATH" ./chatplaceholder-build-${{ github.run_number }}.jar
+        cp "$JAR_PATH" ./chatplaceholder-latest.jar
+
+    - name: Create Archive Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: build-${{ github.run_number }}
+        name: "ChatPlaceholder Build #${{ github.run_number }}"
+        body: "Archive of ChatPlaceholder Build #${{ github.run_number }}"
+        files: chatplaceholder-build-${{ github.run_number }}.jar
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Delete Old Latest Tag
+      run: |
+        git tag -d latest || true
+        git push origin :refs/tags/latest || true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Update Latest Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: latest
+        name: "ChatPlaceholder Latest Build"
+        body: "This release contains the latest executable and source code for the ChatPlaceholder plugin from the main branch."
+        files: chatplaceholder-latest.jar
+        prerelease: false
+        make_latest: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

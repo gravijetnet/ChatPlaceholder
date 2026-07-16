@@ -1,0 +1,25 @@
+name: ChatPlaceholder
+version: ${project.version}
+main: net.gravijet.chatplaceholder.ChatPlaceholderPlugin
+author: gravijet
+description: Central placeholder provider that switches between Lobby (Phoenix) and MBedwars context.
+
+# PlaceholderAPI is required. MBedwars/TAB/Phoenix are optional (soft) so the plugin
+# also loads on a pure lobby server; without MBedwars everyone resolves as LOBBY.
+depend:
+  - PlaceholderAPI
+softdepend:
+  - MBedwars
+  - TAB
+  - Phoenix
+
+commands:
+  chatplaceholder:
+    description: ChatPlaceholder admin command.
+    usage: /chatplaceholder reload
+    aliases: [cph]
+
+permissions:
+  chatplaceholder.admin:
+    description: Allows reloading the ChatPlaceholder config.
+    default: op

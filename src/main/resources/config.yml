@@ -1,0 +1,42 @@
+# ============================================================================
+#  ChatPlaceholder
+# ============================================================================
+#  Registers the PlaceholderAPI expansion "server". It uses the official
+#  MBedwars API to detect whether a player is in a running Bedwars round and
+#  exposes the following placeholders:
+#
+#    %server_mode%         -> LOBBY  or  BEDWARS
+#    %server_chat_prefix%  -> lobby: Phoenix prefix | bedwars: team prefix
+#    %server_tab_prefix%   -> same value as chat_prefix (see note below)
+#    %server_team%         -> RED / BLUE / GREEN / YELLOW / ... or NONE
+#    %server_team_color%   -> the team's colour code, e.g. &c  &9  &a
+#
+#  chat_prefix and tab_prefix currently return the same value, but they are
+#  separate placeholders so you can differentiate chat vs. TAB later without
+#  touching Phoenix or TAB again.
+# ============================================================================
+
+mode:
+  # Text returned by %server_mode% in each state.
+  lobby: "LOBBY"
+  bedwars: "BEDWARS"
+
+team:
+  # Value returned by %server_team% when the player is not in a Bedwars round.
+  none: "NONE"
+
+bedwars:
+  # Prefix returned by %server_chat_prefix% / %server_tab_prefix% while the
+  # player is in a *running* Bedwars round.
+  #   Tokens: {color} {initials} {team}
+  #   Examples of the rendered result: &c[R]   &a[G]   &9[B]
+  prefix-format: "{color}[{initials}] "
+
+lobby:
+  # In the lobby the prefix is taken straight from Phoenix by resolving this
+  # placeholder. Change it if your Phoenix build exposes a different one
+  # (e.g. %phoenix_rank_prefix%).
+  phoenix-prefix-placeholder: "%phoenix_prefix%"
+  # Fallback used when the placeholder above cannot be resolved
+  # (Phoenix missing / placeholder unknown).
+  phoenix-prefix-fallback: ""
