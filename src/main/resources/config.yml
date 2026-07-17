@@ -1,20 +1,30 @@
 # ============================================================================
 #  ChatPlaceholder
 # ============================================================================
-#  Registers the PlaceholderAPI expansion "server". It uses the official
-#  MBedwars API to detect whether a player is in a running Bedwars round and
-#  exposes the following placeholders:
+#  Registers a PlaceholderAPI expansion (identifier "server" by default). It
+#  uses the official MBedwars API to detect whether a player is in a running
+#  Bedwars round and switches every placeholder automatically:
 #
-#    %server_mode%         -> LOBBY  or  BEDWARS
-#    %server_chat_prefix%  -> lobby: Phoenix prefix | bedwars: team prefix
-#    %server_tab_prefix%   -> same value as chat_prefix (see note below)
-#    %server_team%         -> RED / BLUE / GREEN / YELLOW / ... or NONE
-#    %server_team_color%   -> the team's colour code, e.g. &c  &9  &a
-#
-#  chat_prefix and tab_prefix currently return the same value, but they are
-#  separate placeholders so you can differentiate chat vs. TAB later without
-#  touching Phoenix or TAB again.
+#    %server_mode%           -> LOBBY  or  BEDWARS
+#    %server_chat_prefix%    -> lobby: Phoenix rank prefix | bedwars: [R]
+#    %server_tab_prefix%     -> lobby: Phoenix rank prefix | bedwars: [R]
+#    %server_tab_sort%       -> lobby: rank priority       | bedwars: team
+#    %server_tab_name_color% -> lobby: rank colour         | bedwars: team colour
+#    %server_team%           -> RED / BLUE / GREEN / ... or NONE
+#    %server_team_color%     -> the team's colour code, e.g. &c  &9  &a
 # ============================================================================
+
+expansion:
+  # Identifier the placeholders are registered under: "server" -> %server_mode%.
+  #
+  # PlaceholderAPI allows exactly ONE expansion per identifier. The popular eCloud
+  # "Server" expansion (%server_online%, %server_tps%, %server_ram%, ...) uses this
+  # same name. ChatPlaceholder wins that fight, which means those eCloud
+  # placeholders stop working. If you need them, pick a free name here (e.g. "gj",
+  # which turns the placeholders into %gj_mode%, %gj_tab_prefix%, ...).
+  #
+  # Requires a server restart to take effect.
+  identifier: "server"
 
 mode:
   # Text returned by %server_mode% in each state.
@@ -26,17 +36,44 @@ team:
   none: "NONE"
 
 bedwars:
-  # Prefix returned by %server_chat_prefix% / %server_tab_prefix% while the
-  # player is in a *running* Bedwars round.
-  #   Tokens: {color} {initials} {team}
-  #   Examples of the rendered result: &c[R]   &a[G]   &9[B]
-  prefix-format: "{color}[{initials}] "
+  # Prefixes used while the player is in a *running* Bedwars round.
+  #   Tokens: {color}     -> the team colour, e.g. &c
+  #           {initials}  -> the team initials from MBedwars, e.g. R
+  #           {team}      -> the team display name, e.g. Red
+  #           {team_id}   -> the internal team name, e.g. RED
+  chat-prefix-format: "{color}[{initials}] "
+  tab-prefix-format: "{color}[{initials}] "
 
 lobby:
-  # In the lobby the prefix is taken straight from Phoenix by resolving this
-  # placeholder. Change it if your Phoenix build exposes a different one
-  # (e.g. %phoenix_rank_prefix%).
-  phoenix-prefix-placeholder: "%phoenix_prefix%"
-  # Fallback used when the placeholder above cannot be resolved
-  # (Phoenix missing / placeholder unknown).
-  phoenix-prefix-fallback: ""
+  # In the lobby every value is taken straight from Phoenix through these
+  # placeholders. See https://docs.refinedev.org/Phoenix/Placeholders/
+  #
+  # NOTE: %phoenix_prefix% does NOT exist - the correct name is
+  # %phoenix_player_rank_prefix%. Using a wrong name here silently yields the
+  # fallback below, which is why a rank can end up missing in chat/TAB.
+
+  # The rank prefix, e.g. "&b[MVP]".
+  chat-prefix-placeholder: "%phoenix_player_rank_prefix%"
+  # Prefix shown in TAB. Phoenix also offers a dedicated (usually colour-only)
+  # tab prefix as %phoenix_player_rank_playerlist_prefix% if you prefer that.
+  tab-prefix-placeholder: "%phoenix_player_rank_prefix%"
+  # Used when the placeholders above cannot be resolved (Phoenix missing).
+  prefix-fallback: ""
+
+  # Colour of the player's name in TAB. %pxcosmetics_player_color% (the player's
+  # custom name colour) is a common alternative.
+  name-color-placeholder: "%phoenix_player_rank_color%"
+  name-color-fallback: "&7"
+
+  # Numeric rank priority used to sort the lobby part of the tablist.
+  priority-placeholder: "%phoenix_player_rank_priority%"
+  priority-fallback: 0
+
+tab-sort:
+  # In Phoenix a *higher* priority number means a *higher* rank (Owner 100 > MVP 90).
+  # %server_tab_sort% is ascending (lowest value on top), so the priority is
+  # inverted for you. Set this to false if your ranks are numbered the other way
+  # round (i.e. Owner has the lowest number).
+  higher-priority-is-higher-rank: true
+  # Upper bound used for that inversion; must be >= your highest rank priority.
+  max-rank-priority: 9999

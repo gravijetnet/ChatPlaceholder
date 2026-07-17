@@ -24,11 +24,20 @@ public final class MBedwarsHook {
         public final String colorCode;
         /** Team initials as configured in MBedwars, e.g. {@code R}. */
         public final String initials;
+        /** Display name as configured in MBedwars, e.g. {@code Red}. */
+        public final String displayName;
+        /**
+         * Position of the team in the MBedwars {@code Team} enum. Stable across restarts and
+         * identical on every server, which makes it a natural sort key for TAB.
+         */
+        public final int order;
 
-        TeamSnapshot(String name, String colorCode, String initials) {
+        TeamSnapshot(String name, String colorCode, String initials, String displayName, int order) {
             this.name = name;
             this.colorCode = colorCode;
             this.initials = initials;
+            this.displayName = displayName;
+            this.order = order;
         }
     }
 
@@ -66,7 +75,8 @@ public final class MBedwarsHook {
             return null; // in the arena but without a team
         }
 
-        return new TeamSnapshot(team.name(), colorCode(team), team.getInitials());
+        return new TeamSnapshot(team.name(), colorCode(team), team.getInitials(),
+                team.getDisplayName(), team.ordinal());
     }
 
     /** {@code true} when the player is in a running Bedwars round with a team. */

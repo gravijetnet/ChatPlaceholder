@@ -7,7 +7,7 @@ placeholders through **PlaceholderAPI** so that **Phoenix chat**, the **TAB** pl
 scoreboards, nametags, etc. all stay in sync — you only configure the switch in one place.
 
 ```
-Lobby:    Owner | gravijet: Hallo
+Lobby:    [MVP] gravijet: Hallo
 Bedwars:  [R] gravijet: Hallo
 ```
 
@@ -20,25 +20,41 @@ Bedwars:  [R] gravijet: Hallo
   3. the player has a team (`Arena.getPlayerTeam` is not `null`).
 
   Otherwise the player is `LOBBY` (this also covers spectators and the pre-game waiting lobby).
-* **Lobby prefix** is taken from Phoenix by resolving its placeholder (default
-  `%phoenix_prefix%`, configurable).
-* **Bedwars prefix** is built from the MBedwars team colour + initials.
+* **Lobby values** come from Phoenix, resolved through PlaceholderAPI (rank prefix, rank colour,
+  rank priority). All configurable.
+* **Bedwars values** are built from the MBedwars team (colour, initials, enum order).
 * MBedwars events (`PlayerJoinArenaEvent`, `PlayerQuitArenaEvent`, `ArenaStatusChangeEvent`)
   trigger an instant TAB refresh so transitions are immediate. The placeholders themselves are
   always computed live, so this is only a responsiveness optimisation.
 
 ## Placeholders (expansion identifier: `server`)
 
-| Placeholder             | Lobby                         | Bedwars                        |
-|-------------------------|-------------------------------|--------------------------------|
-| `%server_mode%`         | `LOBBY`                       | `BEDWARS`                      |
-| `%server_chat_prefix%`  | Phoenix prefix, e.g. `&6Owner &8\| ` | team prefix, e.g. `&c[R] ` |
-| `%server_tab_prefix%`   | Phoenix prefix                | team prefix, e.g. `&c[R] `     |
-| `%server_team%`         | `NONE`                        | `RED` / `BLUE` / `GREEN` / …   |
-| `%server_team_color%`   | *(empty)*                     | `&c` / `&9` / `&a` / …         |
+| Placeholder               | Lobby                                 | Bedwars                        |
+|---------------------------|---------------------------------------|--------------------------------|
+| `%server_mode%`           | `LOBBY`                               | `BEDWARS`                      |
+| `%server_chat_prefix%`    | rank prefix, e.g. `&b[MVP]`           | team prefix, e.g. `&c[R] `     |
+| `%server_tab_prefix%`     | rank prefix, e.g. `&b[MVP]`           | team prefix, e.g. `&c[R] `     |
+| `%server_tab_sort%`       | rank priority (`1009899`)             | team order (`0029899`)         |
+| `%server_tab_name_color%` | rank colour, e.g. `&b`                | team colour, e.g. `&c`         |
+| `%server_team%`           | `NONE`                                | `RED` / `BLUE` / `GREEN` / …   |
+| `%server_team_color%`     | *(empty)*                             | `&c` / `&9` / `&a` / …         |
 
-`chat_prefix` and `tab_prefix` currently return the same value but are separate placeholders so
-you can differentiate chat vs. TAB later without touching Phoenix or TAB again.
+### About `%server_tab_sort%`
+
+A zero-padded number, **lowest value on top**, built as `<block><team><rank>`:
+
+* `block` — `0` for Bedwars players, `1` for lobby players, so a running round stays on top.
+* `team` — the MBedwars team order, so all of RED sits together, then BLUE, …
+* `rank` — the inverted Phoenix rank priority, so staff stay on top (inside a Bedwars team too).
+
+Because every segment has a fixed width, TAB's numeric (`PLACEHOLDER_LOW_TO_HIGH`) and
+alphabetic (`PLACEHOLDER_A_TO_Z`) sorting produce the exact same order.
+
+> ⚠️ **Identifier clash:** PlaceholderAPI allows only **one** expansion per identifier, and the
+> popular eCloud *Server* expansion (`%server_online%`, `%server_tps%`, `%server_ram%`) also uses
+> `server`. ChatPlaceholder takes it over and logs a warning on startup. If you need those
+> eCloud placeholders, set `expansion.identifier` in `config.yml` to a free name (e.g. `gj` →
+> `%gj_tab_prefix%`) and restart.
 
 ## Requirements
 
@@ -46,50 +62,91 @@ you can differentiate chat vs. TAB later without touching Phoenix or TAB again.
 |-----------------|-----------------------------------------|------------------|
 | PlaceholderAPI  | registering / serving the placeholders  | **yes**          |
 | MBedwars        | Bedwars detection (else everyone `LOBBY`)| soft             |
-| Phoenix         | lobby prefix value                      | soft             |
+| Phoenix         | lobby rank prefix / colour / priority   | soft             |
 | TAB             | instant refresh on transitions          | soft             |
 
 ## Usage
 
-**Phoenix chat** (`plugins/Phoenix/.../config.yml`), one format for both states:
+### Phoenix chat
+
+Take your existing lobby format and replace the `<prefix>` token with `%server_chat_prefix%`:
 
 ```yaml
-chat-format: "%server_chat_prefix%<player>&7: %pxcosmetics_player_chat_color%<message>"
+# before: <prefix><color><player><suffix><tag>&7: &f<chatcolor><message>
+chat-format: "%server_chat_prefix%<color><player><suffix><tag>&7: &f<chatcolor><message>"
 ```
 
-**TAB** (`plugins/TAB/config.yml`):
+The lobby keeps rendering exactly as it did (`<prefix>` resolves to the rank prefix), and in a
+Bedwars round the very same format switches to `&c[R] `.
+
+### TAB
+
+`plugins/TAB/groups.yml` — one config for both states, `%phoenix_player_name%` is the Phoenix
+name *including* nicks:
 
 ```yaml
-_OTHER_:
+_DEFAULT_:
   tabprefix: "%server_tab_prefix%"
-  tagprefix: "%server_tab_prefix%"
+  customtabname: "%server_tab_name_color%%phoenix_player_name%"
+  tabsuffix: ""
 ```
 
-Test in-game with:
+`plugins/TAB/config.yml`:
+
+```yaml
+scoreboard-teams:
+  enabled: true
+  sorting-types:
+    - "PLACEHOLDER_LOW_TO_HIGH:%server_tab_sort%"
+```
+
+That gives `[MVP] gravijet` in the lobby (rank prefix, no tags) and `[R] gravijet` in a round,
+sorted by rank and by Bedwars team respectively.
+
+### Verifying
 
 ```
 /papi parse me %server_mode%
 /papi parse me %server_chat_prefix%
-/papi parse me %server_team%
+/papi parse me %server_tab_sort%
 ```
+
+If a placeholder shows up **literally** (e.g. `%server_tab_prefix%`), it is not registered —
+check the startup log, ChatPlaceholder reports the exact reason (identifier clash, missing
+PlaceholderAPI, …).
 
 > After changing TAB/PlaceholderAPI setup, do a full server restart (not `/reload`) so the
 > placeholders register cleanly.
 
 ## Configuration (`config.yml`)
 
+The Phoenix placeholder names are the ones from
+[the Phoenix docs](https://docs.refinedev.org/Phoenix/Placeholders/) — note that
+`%phoenix_prefix%` does **not** exist; the correct name is `%phoenix_player_rank_prefix%`.
+
 ```yaml
+expansion:
+  identifier: "server"          # restart required
 mode:
   lobby: "LOBBY"
   bedwars: "BEDWARS"
 team:
   none: "NONE"
 bedwars:
-  # Tokens: {color} {initials} {team}
-  prefix-format: "{color}[{initials}] "
+  # Tokens: {color} {initials} {team} {team_id}
+  chat-prefix-format: "{color}[{initials}] "
+  tab-prefix-format: "{color}[{initials}] "
 lobby:
-  phoenix-prefix-placeholder: "%phoenix_prefix%"
-  phoenix-prefix-fallback: ""
+  chat-prefix-placeholder: "%phoenix_player_rank_prefix%"
+  tab-prefix-placeholder: "%phoenix_player_rank_prefix%"
+  prefix-fallback: ""
+  name-color-placeholder: "%phoenix_player_rank_color%"
+  name-color-fallback: "&7"
+  priority-placeholder: "%phoenix_player_rank_priority%"
+  priority-fallback: 0
+tab-sort:
+  higher-priority-is-higher-rank: true
+  max-rank-priority: 9999
 ```
 
 `/chatplaceholder reload` (alias `/cph`, permission `chatplaceholder.admin`) reloads it.
@@ -121,3 +178,5 @@ publishes a per-run archive release (`build-<n>`) and updates the rolling `lates
   without `NoClassDefFoundError`.
 * The team colour is read from MBedwars (`Team.getBungeeChatColor()`), so custom team colours
   are respected instead of being hard-coded.
+* Unresolvable Phoenix placeholders fall back to a configured value instead of leaking a raw
+  `%phoenix_...%` into chat or TAB.
